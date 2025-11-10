@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ProcessingConfig, ProcessingState } from './types';
 import Header from './components/Header';
@@ -10,13 +9,15 @@ import { useVideoProcessor } from './hooks/useVideoProcessor';
 import SelectKeyScreen from './components/SelectKeyScreen';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 
-// Fix: Inlined the type definition for `window.aistudio` to prevent potential global type conflicts.
+// Fix: Corrected the global type declaration for `window.aistudio` to use a named interface `AIStudio`.
+// This resolves conflicts with other potential declarations and aligns with TypeScript's type merging rules.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
   interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    aistudio: AIStudio;
   }
 }
 
@@ -29,9 +30,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkApiKey = async () => {
       // The `aistudio` object might be injected after the initial script load.
-      // We'll poll for a longer period (up to 2 seconds) to make this more robust.
+      // We'll poll for a much longer period (up to 5 seconds) to make this more robust.
       let aistudioReady = false;
-      for (let i = 0; i < 20; i++) {
+      const maxAttempts = 50; // 50 attempts * 100ms = 5 seconds
+      for (let i = 0; i < maxAttempts; i++) {
         if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
           aistudioReady = true;
           break;
@@ -43,7 +45,7 @@ const App: React.FC = () => {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setApiKeyStatus(hasKey ? 'ready' : 'needed');
       } else {
-        console.error("AI Studio API key management is not available in this environment.");
+        console.error("AI Studio API key management is not available in this environment after 5 seconds.");
         setApiKeyStatus('unavailable');
       }
     };
