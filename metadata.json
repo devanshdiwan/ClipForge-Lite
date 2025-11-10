@@ -1,0 +1,5 @@
+{
+  "name": "ClipForge Lite",
+  "description": "An AI-powered web application that takes a long video and automatically generates engaging, vertical short clips with captions, ready for social media.",
+  "requestFramePermissions": []
+}
