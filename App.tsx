@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ProcessingConfig, ProcessingState } from './types';
 import Header from './components/Header';
@@ -9,15 +10,13 @@ import { useVideoProcessor } from './hooks/useVideoProcessor';
 import SelectKeyScreen from './components/SelectKeyScreen';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 
-// Fix: Defined an AIStudio interface to resolve conflicting type declarations for `window.aistudio`.
-// Fix: Moved the AIStudio interface declaration inside the `declare global` block to resolve a TypeScript error where the type was being treated as local to the module, causing a conflict with global window augmentation.
+// Fix: Inlined the type definition for `window.aistudio` to prevent potential global type conflicts.
 declare global {
-  interface AIStudio {
-    hasSelectedApiKey: () => Promise<boolean>;
-    openSelectKey: () => Promise<void>;
-  }
   interface Window {
-    aistudio: AIStudio;
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
   }
 }
 
@@ -30,9 +29,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkApiKey = async () => {
       // The `aistudio` object might be injected after the initial script load.
-      // We'll poll for a short period to see if it becomes available to avoid race conditions.
+      // We'll poll for a longer period (up to 2 seconds) to make this more robust.
       let aistudioReady = false;
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 20; i++) {
         if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
           aistudioReady = true;
           break;
@@ -105,7 +104,8 @@ const App: React.FC = () => {
       return (
          <div className="flex flex-col items-center justify-center h-full">
             <SpinnerIcon className="w-12 h-12 text-purple-500" />
-            <p className="mt-4 text-lg">Checking API Key status...</p>
+            <p className="mt-4 text-lg">Initializing AI Environment...</p>
+            <p className="text-sm text-gray-400">Please wait a moment.</p>
          </div>
       );
     }
