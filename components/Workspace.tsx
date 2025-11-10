@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { Clip, ProcessingState } from '../types';
+import { Clip, ProcessingConfig, ProcessingState } from '../types';
 import VideoPlayer from './VideoPlayer';
 import ClipCard from './ClipCard';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -9,9 +9,10 @@ interface WorkspaceProps {
   clips: Clip[];
   processingState: ProcessingState;
   error: string | null;
+  config: ProcessingConfig;
 }
 
-const Workspace: React.FC<WorkspaceProps> = ({ videoUrl, clips, processingState, error }) => {
+const Workspace: React.FC<WorkspaceProps> = ({ videoUrl, clips, processingState, error, config }) => {
   const [activeClip, setActiveClip] = useState<Clip | null>(null);
   const [modalContent, setModalContent] = useState<{title: string, message: string} | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,10 +40,10 @@ const Workspace: React.FC<WorkspaceProps> = ({ videoUrl, clips, processingState,
 
   if (error) {
     return (
-      <div className="text-center p-8 bg-red-900/20 border border-red-500 rounded-lg">
+      <div className="text-center p-8 bg-red-900/20 border border-red-500 rounded-lg max-w-2xl mx-auto">
         <h3 className="text-2xl font-bold text-red-400 mb-2">Processing Failed</h3>
         <p className="text-red-300">{error}</p>
-        <p className="text-sm text-gray-400 mt-2">Please try reloading the page or using a different video file.</p>
+        <p className="text-sm text-gray-400 mt-2">Please try reloading the page or using a different video file. If this persists, check your API key configuration.</p>
       </div>
     );
   }
@@ -54,7 +55,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ videoUrl, clips, processingState,
   return (
     <div className="w-full h-full flex-grow flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
       <div className="flex-1 lg:w-3/5 flex flex-col">
-        <VideoPlayer ref={videoRef} src={videoUrl} activeClip={activeClip} />
+        <VideoPlayer ref={videoRef} src={videoUrl} activeClip={activeClip} config={config} />
       </div>
       <div className="flex-1 lg:w-2/5 flex flex-col">
         <div className="flex justify-between items-center mb-4">

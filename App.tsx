@@ -60,12 +60,13 @@ const App: React.FC = () => {
           />
         )}
 
-        {isFinished && videoUrl && (
+        {isFinished && videoUrl && config && (
           <Workspace
             videoUrl={videoUrl}
             clips={clips}
             processingState={processingState}
             error={error}
+            config={config}
           />
         )}
       </main>

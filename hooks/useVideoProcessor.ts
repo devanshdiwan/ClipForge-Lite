@@ -1,36 +1,36 @@
 import { useState, useEffect } from 'react';
-import { Clip, ProcessingState, TranscriptLine, ProcessingConfig, CaptionStyle, CaptionDesignPreset } from '../types';
+import { Clip, ProcessingState, TranscriptLine, ProcessingConfig, CaptionStyle, CaptionTemplate } from '../types';
 import { generateTranscriptAndScenes, generateHook } from '../services/geminiService';
 
 const TARGET_CLIPS = 6;
 
-const CAPTION_DESIGNS: Record<CaptionDesignPreset, CaptionStyle> = {
-  Modern: {
-    preset: 'Modern',
+const CAPTION_TEMPLATES: Record<CaptionTemplate, CaptionStyle> = {
+  Hormozi1: {
+    preset: 'Hormozi1',
     font: 'Inter',
     textColor: '#FFFFFF',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    highlightColor: '#7B61FF',
-    textShadow: '2px 2px 4px rgba(0,0,0,0.7)',
-    fontWeight: 700,
-  },
-  Bold: {
-    preset: 'Bold',
-    font: 'Inter',
-    textColor: '#FFFF00',
     backgroundColor: 'rgba(0, 0, 0, 0.0)',
-    highlightColor: '#FFFFFF',
-    textShadow: '0 0 5px #000, 0 0 5px #000, 0 0 5px #000',
+    highlightColor: '#39FF14', // Neon green
+    textShadow: '3px 3px 0px #000, -3px -3px 0px #000, 3px -3px 0px #000, -3px 3px 0px #000',
     fontWeight: 800,
   },
-  Minimal: {
-    preset: 'Minimal',
+  Hormozi2: {
+    preset: 'Hormozi2',
+    font: 'Inter',
+    textColor: '#000000',
+    backgroundColor: '#FFFF00',
+    highlightColor: '#FF0000',
+    textShadow: 'none',
+    fontWeight: 800,
+  },
+  Karaoke: {
+    preset: 'Karaoke',
     font: 'Inter',
     textColor: '#FFFFFF',
-    backgroundColor: 'transparent',
-    highlightColor: '#7B61FF',
-    textShadow: '1px 1px 2px rgba(0,0,0,0.5)',
-    fontWeight: 600,
+    backgroundColor: 'rgba(255, 20, 147, 0.7)', // Deep pink
+    highlightColor: '#FFFF00',
+    textShadow: '2px 2px 3px rgba(0,0,0,0.5)',
+    fontWeight: 700,
   },
 };
 
@@ -59,11 +59,25 @@ export const useVideoProcessor = (
       try {
         setError(null);
         setClips([]);
-        const { targetDuration, sourceLanguage, targetLanguage, captionDesign } = config;
-        const captionStyle = CAPTION_DESIGNS[captionDesign];
+        const { clipLength, videoLanguage, translateCaptions, translationLanguage, template } = config;
+        const captionStyle = CAPTION_TEMPLATES[template];
 
-        const MIN_CLIP_LENGTH = targetDuration - 5;
-        const MAX_CLIP_LENGTH = targetDuration + 15;
+        let minClipLength, maxClipLength;
+        switch (clipLength) {
+            case '<30':
+                minClipLength = 10; maxClipLength = 29; break;
+            case '30-60':
+                minClipLength = 30; maxClipLength = 60; break;
+            case '60-90':
+                minClipLength = 61; maxClipLength = 90; break;
+            case 'original':
+                minClipLength = 90; maxClipLength = 120; break;
+            default:
+                minClipLength = 25; maxClipLength = 60;
+        }
+
+        const sourceLanguage = videoLanguage;
+        const targetLanguage = translateCaptions ? translationLanguage : videoLanguage;
 
         setProcessingState({ status: 'transcribing', message: `Generating transcript in ${targetLanguage}...`, progress: 10 });
         const videoTopic = videoFile.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
@@ -76,8 +90,8 @@ export const useVideoProcessor = (
 
         for (const line of fullTranscript) {
           const lineDuration = line.end - line.start;
-          if (currentClipDuration + lineDuration > MAX_CLIP_LENGTH) {
-            if (currentClipDuration >= MIN_CLIP_LENGTH) {
+          if (currentClipDuration + lineDuration > maxClipLength) {
+            if (currentClipDuration >= minClipLength) {
               potentialClips.push(currentClipLines);
             }
             currentClipLines = currentClipLines.slice(Math.floor(currentClipLines.length / 2));
@@ -86,10 +100,11 @@ export const useVideoProcessor = (
           currentClipLines.push({ text: line.text, start: line.start, end: line.end });
           currentClipDuration += lineDuration;
         }
-        if (currentClipLines.length > 0 && currentClipDuration >= MIN_CLIP_LENGTH) {
+        if (currentClipLines.length > 0 && currentClipDuration >= minClipLength) {
           potentialClips.push(currentClipLines);
         }
-
+        
+        const targetDuration = (minClipLength + maxClipLength) / 2;
         const scoredClips = potentialClips.map(clipLines => {
           const text = clipLines.map(l => l.text).join(' ');
           const duration = clipLines[clipLines.length-1].end - clipLines[0].start;

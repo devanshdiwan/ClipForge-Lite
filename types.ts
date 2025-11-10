@@ -1,8 +1,9 @@
-export type CaptionDesignPreset = 'Modern' | 'Bold' | 'Minimal';
 export type Language = 'English' | 'Hindi' | 'Spanish' | 'French';
 
+export type CaptionTemplate = 'Hormozi1' | 'Hormozi2' | 'Karaoke';
+
 export interface CaptionStyle {
-  preset: CaptionDesignPreset;
+  preset: CaptionTemplate;
   font: 'Inter' | 'Poppins' | 'Roboto';
   textColor: string;
   backgroundColor: string;
@@ -34,11 +35,22 @@ export interface ProcessingState {
   progress: number;
 }
 
-export type TargetDuration = 15 | 30 | 60;
+export type ClipLength = '<30' | '30-60' | '60-90' | 'original';
+export type VideoLayout = 'auto' | 'fill' | 'fit' | 'square';
 
 export interface ProcessingConfig {
-  targetDuration: TargetDuration;
-  captionDesign: CaptionDesignPreset;
-  sourceLanguage: Language;
-  targetLanguage: Language;
+  videoLanguage: Language;
+  translateCaptions: boolean;
+  translationLanguage: Language;
+  processingTimeframe: [number, number]; // [start_percentage, end_percentage]
+  clipLength: ClipLength;
+  layout: VideoLayout;
+  template: CaptionTemplate;
+  memeHook: boolean;
+  gameVideo: boolean;
+  hookTitle: boolean;
+  callToAction: boolean;
+  ctaText: string;
+  backgroundMusic: boolean;
+  wordsPerCaption: number;
 }

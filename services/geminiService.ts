@@ -46,9 +46,17 @@ export const generateTranscriptAndScenes = async (
       },
     });
     const jsonText = response.text.trim();
-    return JSON.parse(jsonText);
+    try {
+        return JSON.parse(jsonText);
+    } catch (parseError) {
+        console.error("Error parsing Gemini response as JSON:", jsonText);
+        throw new Error("Failed to parse transcript from Gemini. The model may have returned an invalid format.");
+    }
   } catch (error) {
     console.error("Error generating transcript:", error);
+    if (error instanceof Error && (error.message.includes("API key not valid") || error.message.includes("API_KEY"))) {
+       throw new Error("Your API key is not valid. Please check your environment configuration.");
+    }
     throw new Error("Failed to generate transcript from Gemini.");
   }
 };

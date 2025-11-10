@@ -1,12 +1,13 @@
 import React, { forwardRef, useEffect, useState } from 'react';
-import { Clip } from '../types';
+import { Clip, ProcessingConfig } from '../types';
 
 interface VideoPlayerProps {
   src: string;
   activeClip: Clip | null;
+  config: ProcessingConfig;
 }
 
-const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activeClip }, ref) => {
+const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activeClip, config }, ref) => {
     const [currentCaption, setCurrentCaption] = useState('');
 
     useEffect(() => {
@@ -45,10 +46,18 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activ
         controls
         className="absolute top-0 left-0 w-full h-full object-cover"
       />
+      {activeClip && config.hookTitle && (
+        <div className="absolute top-16 left-0 right-0 p-4 flex justify-center items-center pointer-events-none">
+            <p className="text-xl font-bold text-white text-center" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
+                {activeClip.hook}
+            </p>
+        </div>
+      )}
+
       {activeClip && currentCaption && captionStyle && (
-        <div className="absolute bottom-24 left-0 right-0 p-4 flex justify-center items-center pointer-events-none">
+        <div className="absolute inset-0 p-4 flex justify-center items-center pointer-events-none">
              <p 
-                className={`text-2xl md:text-3xl text-center leading-tight`}
+                className={`text-2xl md:text-3xl text-center leading-tight max-w-[90%]`}
                 style={{
                     fontFamily: `'${captionStyle.font}', sans-serif`,
                     color: captionStyle.textColor,
@@ -62,6 +71,14 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activ
                 {currentCaption}
              </p>
         </div>
+      )}
+
+      {activeClip && config.callToAction && config.ctaText && (
+          <div className="absolute bottom-16 left-0 right-0 p-4 flex justify-center items-center pointer-events-none">
+               <p className="text-lg font-semibold text-gray-200 bg-black/50 p-2 rounded-md" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.7)' }}>
+                  {config.ctaText}
+               </p>
+          </div>
       )}
     </div>
   );
