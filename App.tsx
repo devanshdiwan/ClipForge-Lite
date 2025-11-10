@@ -10,12 +10,12 @@ import SelectKeyScreen from './components/SelectKeyScreen';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 
 // Fix: Defined an AIStudio interface to resolve conflicting type declarations for `window.aistudio`.
-interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
+// Fix: Moved the AIStudio interface declaration inside the `declare global` block to resolve a TypeScript error where the type was being treated as local to the module, causing a conflict with global window augmentation.
 declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
   interface Window {
     aistudio: AIStudio;
   }
@@ -25,16 +25,27 @@ const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [config, setConfig] = useState<ProcessingConfig | null>(null);
   const [startProcessing, setStartProcessing] = useState(false);
-  const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'ready' | 'needed'>('checking');
+  const [apiKeyStatus, setApiKeyStatus] = useState<'checking' | 'ready' | 'needed' | 'unavailable'>('checking');
 
   useEffect(() => {
     const checkApiKey = async () => {
-      if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
+      // The `aistudio` object might be injected after the initial script load.
+      // We'll poll for a short period to see if it becomes available to avoid race conditions.
+      let aistudioReady = false;
+      for (let i = 0; i < 5; i++) {
+        if (typeof window.aistudio?.hasSelectedApiKey === 'function') {
+          aistudioReady = true;
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      if (aistudioReady) {
         const hasKey = await window.aistudio.hasSelectedApiKey();
         setApiKeyStatus(hasKey ? 'ready' : 'needed');
       } else {
-        // Fallback for environments where the aistudio object might not be present
-        setApiKeyStatus('ready');
+        console.error("AI Studio API key management is not available in this environment.");
+        setApiKeyStatus('unavailable');
       }
     };
     checkApiKey();
@@ -73,7 +84,6 @@ const App: React.FC = () => {
     setVideoFile(null);
     setStartProcessing(false);
     setConfig(null);
-    setApiKeyStatus('ready'); // Assume key is still valid after reset
   }, [videoUrl]);
   
   const handleSelectKey = async () => {
@@ -82,6 +92,7 @@ const App: React.FC = () => {
       // Assume success to avoid race conditions
       setApiKeyStatus('ready');
     } else {
+      // This path should ideally not be reached due to the initial check.
       alert("API Key selection is not available in this environment.");
     }
   };
@@ -96,6 +107,16 @@ const App: React.FC = () => {
             <SpinnerIcon className="w-12 h-12 text-purple-500" />
             <p className="mt-4 text-lg">Checking API Key status...</p>
          </div>
+      );
+    }
+
+    if (apiKeyStatus === 'unavailable') {
+      return (
+        <div className="text-center p-8 bg-yellow-900/20 border border-yellow-500 rounded-lg max-w-2xl mx-auto">
+          <h3 className="text-2xl font-bold text-yellow-400 mb-2">Environment Error</h3>
+          <p className="text-yellow-300">API Key selection is not available in this environment.</p>
+          <p className="text-sm text-gray-400 mt-2">This application requires integration with a platform that provides API key management to function correctly.</p>
+        </div>
       );
     }
     
