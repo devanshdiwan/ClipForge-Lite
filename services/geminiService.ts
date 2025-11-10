@@ -1,13 +1,16 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from '../types';
 
-const API_KEY = (typeof process !== 'undefined' && process.env?.API_KEY) || '';
+// Helper function to get a configured AI instance securely
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    // This provides a clearer, immediate error if the key is missing.
+    throw new Error("Your API key is not valid. Please check your environment configuration.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
-if (!API_KEY) {
-  console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
 interface Scene {
   topic: string;
@@ -33,6 +36,7 @@ export const analyzeVideoContent = async (
   targetLanguage: Language,
   clipLengthRange: { min: number; max: number }
 ): Promise<{ scenes: Scene[] }> => {
+  const ai = getAI();
   const isTranslation = sourceLanguage !== targetLanguage;
   
   const prompt = `
@@ -66,7 +70,7 @@ export const analyzeVideoContent = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-pro', // UPGRADED MODEL for better complex reasoning
       contents: { parts: contentParts },
       config: {
         responseMimeType: "application/json",
@@ -127,14 +131,15 @@ export const analyzeVideoContent = async (
     }
   } catch (error) {
     console.error("Error analyzing video content:", error);
-    if (error instanceof Error && (error.message.includes("API key not valid") || error.message.includes("API_KEY"))) {
-       throw new Error("Your API key is not valid. Please check your environment configuration.");
+    if (error instanceof Error && error.message.includes("API key")) {
+       throw error;
     }
     throw new Error("Failed to analyze video content with Gemini.");
   }
 };
 
 export const generateHook = async (transcriptExcerpt: string, targetLanguage: Language): Promise<string> => {
+  const ai = getAI();
   const prompt = `
     Generate a short, viral-style hook (under 15 words) in ${targetLanguage} for a video clip with the following summary.
     Make it intriguing and attention-grabbing. Do not include quotes.
