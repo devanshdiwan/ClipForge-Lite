@@ -1,6 +1,6 @@
-
 import React, { useCallback, useState } from 'react';
 import { UploadIcon } from './icons/UploadIcon';
+import { LinkIcon } from './icons/LinkIcon';
 
 interface UploadSectionProps {
   onFileSelect: (file: File) => void;
@@ -8,6 +8,9 @@ interface UploadSectionProps {
 
 const UploadSection: React.FC<UploadSectionProps> = ({ onFileSelect }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+
+  const isValidYoutubeUrl = (url: string) => url.includes('youtube.com') || url.includes('youtu.be');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -39,6 +42,25 @@ const UploadSection: React.FC<UploadSectionProps> = ({ onFileSelect }) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+  };
+
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setYoutubeUrl(e.target.value);
+  };
+
+  const handleUrlImport = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    if (isValidYoutubeUrl(youtubeUrl)) {
+      alert("YouTube import is for demonstration purposes only.\n\nTo enable full video processing and downloading, please upload a local .mp4, .mov, or .webm file. Client-side downloading from YouTube is restricted by browser security policies.");
+      const videoIdMatch = youtubeUrl.match(/(?:v=|\/|embed\/|watch\?v=|&v=)([a-zA-Z0-9_-]{11})/);
+      const videoName = videoIdMatch ? videoIdMatch[1] : `youtube_video`;
+      const dummyFile = new File(
+        ["dummy content for demo"],
+        `${videoName}.mp4`,
+        { type: "video/mp4" }
+      );
+      onFileSelect(dummyFile);
+    }
   };
 
 
@@ -76,12 +98,40 @@ const UploadSection: React.FC<UploadSectionProps> = ({ onFileSelect }) => {
             name="file-upload"
             type="file"
             className="sr-only"
-            accept="video/mp4,video/quicktime"
+            accept="video/mp4,video/quicktime,video/webm"
             onChange={handleFileChange}
           />
         </div>
       </div>
-       <p className="text-xs text-gray-500 mt-4">Supports .mp4 and .mov files.</p>
+       <p className="text-xs text-gray-500 mt-4">Supports .mp4, .mov and .webm files.</p>
+
+       <div className="my-6 flex items-center">
+        <div className="flex-grow border-t border-gray-700"></div>
+        <span className="flex-shrink mx-4 text-gray-500 uppercase text-sm font-semibold">Or Import from YouTube</span>
+        <div className="flex-grow border-t border-gray-700"></div>
+      </div>
+      
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+          <LinkIcon className="w-5 h-5 text-gray-400" />
+        </div>
+        <input
+          type="url"
+          value={youtubeUrl}
+          onChange={handleUrlChange}
+          placeholder="Paste a YouTube link here"
+          className="w-full bg-gray-800 border border-gray-600 text-white rounded-lg py-3 pl-12 pr-32 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+          aria-label="YouTube video URL"
+        />
+        <button
+          onClick={handleUrlImport}
+          disabled={!isValidYoutubeUrl(youtubeUrl)}
+          className="absolute inset-y-1.5 right-1.5 px-5 py-2 bg-[#7B61FF] text-white font-semibold rounded-md shadow-md hover:bg-purple-600 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+          aria-label="Import from YouTube"
+        >
+          Import
+        </button>
+      </div>
     </div>
   );
 };

@@ -9,39 +9,112 @@ if (!API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
-export const generateTranscriptAndScenes = async (
+interface Scene {
+  topic: string;
+  summary: string;
+  viralityScore: number;
+  reasoning: string;
+  startTime: number;
+  endTime: number;
+  transcript: { 
+      start: number; 
+      end: number; 
+      text: string; 
+      emoji?: string;
+      words: { start: number; end: number; text: string }[];
+  }[];
+}
+
+export const analyzeVideoContent = async (
+  frames: string[],
+  duration: number,
   videoTopic: string,
   sourceLanguage: Language,
-  targetLanguage: Language
-): Promise<{ start: number, end: number, text: string }[]> => {
+  targetLanguage: Language,
+  clipLengthRange: { min: number; max: number }
+): Promise<{ scenes: Scene[] }> => {
   const isTranslation = sourceLanguage !== targetLanguage;
+  
   const prompt = `
-    You are an expert video content creator and linguist.
-    A user has provided a video about "${videoTopic}" which is in ${sourceLanguage}.
-    Your task is to generate a plausible, engaging 2-minute transcript for this video, but delivered in ${targetLanguage}.
-    ${isTranslation ? `This means you must effectively translate and culturally adapt the content from ${sourceLanguage} to ${targetLanguage}, making it sound natural and fluent, as if it were originally created in ${targetLanguage}. This simulates video dubbing.` : ''}
-    The video should have several distinct, engaging segments.
-    Format the output as a JSON array of objects. Each object must have "start" (start time in seconds), "end" (end time in seconds), and "text" (the spoken line in ${targetLanguage}).
-    Ensure timestamps are sequential and logical for a 2-minute video.
-    Provide at least 15-20 transcript lines.
+    You are an expert AI video editor, like the engine behind Opus Clip. Your task is to analyze a video's content based on a series of frames and identify the most viral-worthy short clips.
+
+    The user has provided a video about "${videoTopic}". The video is ${Math.round(duration)} seconds long and is in ${sourceLanguage}.
+    I am providing you with ${frames.length} frames sampled evenly from the video.
+
+    Your process is:
+    1.  **Analyze Visuals & Generate Plausible Transcript:** Review the frames to understand the video's narrative. Based on visuals and topic, create a plausible, detailed transcript in ${targetLanguage}. ${isTranslation ? `This involves translating from ${sourceLanguage}.` : ''}
+    2.  **CRITICAL - Word-Level Timestamps:** For each line in the transcript, you MUST provide precise, word-by-word timestamps. Each word needs its own "start" and "end" time. This is essential for karaoke-style captions.
+    3.  **Suggest Emojis:** For each transcript line, suggest a single, relevant "emoji" that captures the tone or content of the sentence.
+    4.  **Segment into Scenes:** Break the video into distinct scenes based on topics. Each scene MUST have a duration between ${clipLengthRange.min} and ${clipLengthRange.max} seconds.
+    5.  **Score for Virality:** For each scene, assign a \`viralityScore\` (1-10) and provide \`reasoning\`.
+    6.  **Summarize:** Write a short \`summary\` for each scene.
+
+    The final output MUST be a JSON object with a "scenes" key. Each scene must contain: "topic", "summary", "viralityScore", "reasoning", "startTime", "endTime", and a "transcript" array. Each object in the "transcript" array must contain: "start", "end", "text", an optional "emoji", and a "words" array (containing objects with "start", "end", "text").
+
+    Ensure all timestamps are accurate relative to the video's ${Math.round(duration)}s duration. Generate at least 5-8 distinct scenes.
   `;
+
+  const contentParts = [
+    { text: prompt },
+    ...frames.map(frameData => ({
+        inlineData: {
+            mimeType: 'image/jpeg',
+            data: frameData.split(',')[1],
+        }
+    }))
+  ];
+
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
+      contents: { parts: contentParts },
       config: {
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              start: { type: Type.NUMBER },
-              end: { type: Type.NUMBER },
-              text: { type: Type.STRING },
+          type: Type.OBJECT,
+          properties: {
+            scenes: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  topic: { type: Type.STRING },
+                  summary: { type: Type.STRING },
+                  viralityScore: { type: Type.NUMBER },
+                  reasoning: { type: Type.STRING },
+                  startTime: { type: Type.NUMBER },
+                  endTime: { type: Type.NUMBER },
+                  transcript: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        start: { type: Type.NUMBER },
+                        end: { type: Type.NUMBER },
+                        text: { type: Type.STRING },
+                        emoji: { type: Type.STRING },
+                        words: {
+                          type: Type.ARRAY,
+                          items: {
+                            type: Type.OBJECT,
+                            properties: {
+                              start: { type: Type.NUMBER },
+                              end: { type: Type.NUMBER },
+                              text: { type: Type.STRING },
+                            },
+                            required: ["start", "end", "text"],
+                          }
+                        }
+                      },
+                      required: ["start", "end", "text", "words"],
+                    },
+                  },
+                },
+                required: ["topic", "summary", "viralityScore", "reasoning", "startTime", "endTime", "transcript"],
+              },
             },
-            required: ["start", "end", "text"],
           },
+          required: ["scenes"],
         },
       },
     });
@@ -50,22 +123,22 @@ export const generateTranscriptAndScenes = async (
         return JSON.parse(jsonText);
     } catch (parseError) {
         console.error("Error parsing Gemini response as JSON:", jsonText);
-        throw new Error("Failed to parse transcript from Gemini. The model may have returned an invalid format.");
+        throw new Error("Failed to parse AI analysis. The model may have returned an invalid format.");
     }
   } catch (error) {
-    console.error("Error generating transcript:", error);
+    console.error("Error analyzing video content:", error);
     if (error instanceof Error && (error.message.includes("API key not valid") || error.message.includes("API_KEY"))) {
        throw new Error("Your API key is not valid. Please check your environment configuration.");
     }
-    throw new Error("Failed to generate transcript from Gemini.");
+    throw new Error("Failed to analyze video content with Gemini.");
   }
 };
 
 export const generateHook = async (transcriptExcerpt: string, targetLanguage: Language): Promise<string> => {
   const prompt = `
-    Generate a short, viral-style hook (under 15 words) in ${targetLanguage} for a video clip with the following transcript.
+    Generate a short, viral-style hook (under 15 words) in ${targetLanguage} for a video clip with the following summary.
     Make it intriguing and attention-grabbing. Do not include quotes.
-    Transcript: "${transcriptExcerpt}"
+    Summary: "${transcriptExcerpt}"
   `;
   try {
     const response = await ai.models.generateContent({

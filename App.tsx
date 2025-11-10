@@ -42,7 +42,7 @@ const App: React.FC = () => {
     setConfig(null);
   }, [videoUrl]);
   
-  const isProcessing = startProcessing && (processingState.status !== 'idle' && processingState.status !== 'done' && processingState.status !== 'error');
+  const isProcessing = startProcessing && !['idle', 'done', 'error'].includes(processingState.status);
   const isFinished = startProcessing && (processingState.status === 'done' || processingState.status === 'error');
 
   return (
@@ -60,9 +60,10 @@ const App: React.FC = () => {
           />
         )}
 
-        {isFinished && videoUrl && config && (
+        {isFinished && videoUrl && config && videoFile && (
           <Workspace
             videoUrl={videoUrl}
+            videoFile={videoFile}
             clips={clips}
             processingState={processingState}
             error={error}

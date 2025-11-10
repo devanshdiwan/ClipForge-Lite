@@ -2,12 +2,16 @@ import React from 'react';
 import { Clip } from '../types';
 import { PlayIcon } from './icons/PlayIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
+import { SpinnerIcon } from './icons/SpinnerIcon';
+import { TrashIcon } from './icons/TrashIcon';
 
 interface ClipCardProps {
   clip: Clip;
   isActive: boolean;
+  isExporting: boolean;
   onPlay: () => void;
   onDownload: () => void;
+  onDelete: () => void;
 }
 
 const formatTime = (seconds: number) => {
@@ -31,8 +35,9 @@ const highlightKeywords = (text: string, highlightColor: string) => {
 };
 
 
-const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, onPlay, onDownload }) => {
+const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, isExporting, onPlay, onDownload, onDelete }) => {
   const duration = clip.endTime - clip.startTime;
+  const firstEmoji = clip.transcript[0]?.emoji;
   
   return (
     <div className={`p-4 rounded-lg transition-all duration-300 ${isActive ? 'bg-purple-900/50 ring-2 ring-purple-500' : 'bg-gray-700/50 hover:bg-gray-700'}`}>
@@ -44,7 +49,7 @@ const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, onPlay, onDownload 
           <PlayIcon className={`w-6 h-6 transition-colors ${isActive ? 'text-purple-400' : 'text-gray-400 group-hover:text-white'}`} />
         </button>
         <div className="flex-1">
-          <p className="font-bold text-white">"{clip.hook}"</p>
+          <p className="font-bold text-white">{firstEmoji && <span className="mr-2">{firstEmoji}</span>}"{clip.hook}"</p>
           <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
             <span>{formatTime(clip.startTime)} - {formatTime(clip.endTime)}</span>
             <span className="w-1 h-1 bg-gray-500 rounded-full"></span>
@@ -54,13 +59,24 @@ const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, onPlay, onDownload 
             {highlightKeywords(clip.transcript.map(t => t.text).join(' '), clip.captionStyle.highlightColor)}
           </p>
         </div>
-        <button
-           onClick={onDownload}
-           className="flex-shrink-0 w-10 h-10 bg-gray-800 rounded-md flex items-center justify-center hover:bg-purple-600 transition-colors group"
-           aria-label="Download this clip"
-        >
-          <DownloadIcon className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-        </button>
+        <div className="flex flex-col gap-2">
+            <button
+               onClick={onDownload}
+               disabled={isExporting}
+               className="flex-shrink-0 w-10 h-10 bg-gray-800 rounded-md flex items-center justify-center hover:bg-purple-600 transition-colors group disabled:bg-gray-600 disabled:cursor-wait"
+               aria-label="Download this clip"
+            >
+              {isExporting ? <SpinnerIcon className="w-5 h-5 text-white" /> : <DownloadIcon className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />}
+            </button>
+            <button
+               onClick={onDelete}
+               disabled={isExporting}
+               className="flex-shrink-0 w-10 h-10 bg-gray-800 rounded-md flex items-center justify-center hover:bg-red-500 transition-colors group disabled:bg-gray-600 disabled:cursor-not-allowed"
+               aria-label="Delete this clip"
+            >
+              <TrashIcon className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+            </button>
+        </div>
       </div>
     </div>
   );

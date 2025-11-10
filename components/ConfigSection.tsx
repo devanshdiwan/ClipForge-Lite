@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ProcessingConfig, Language, ClipLength, VideoLayout, CaptionTemplate } from '../types';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
+import { UploadIcon } from './icons/UploadIcon';
 
 interface ConfigSectionProps {
   videoFile: File;
@@ -28,21 +29,33 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
         clipLength: '30-60',
         layout: 'fit',
         template: 'Hormozi1',
-        memeHook: true,
-        gameVideo: true,
         hookTitle: true,
         callToAction: true,
-        ctaText: 'Take a look at my other videos',
-        backgroundMusic: true,
-        wordsPerCaption: 4,
+        ctaText: 'Follow for more!',
+        backgroundMusic: false,
+        backgroundMusicFile: null,
+        watermarkFile: null,
+        wordsPerCaption: 3,
     });
     
     const [showAdvanced, setShowAdvanced] = useState(true);
+    const watermarkInputRef = useRef<HTMLInputElement>(null);
+    const musicInputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onStartProcessing(config);
     };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'watermark' | 'music') => {
+        if (e.target.files && e.target.files[0]) {
+            if (type === 'watermark') {
+                setConfig({...config, watermarkFile: e.target.files[0]});
+            } else {
+                setConfig({...config, backgroundMusic: true, backgroundMusicFile: e.target.files[0]});
+            }
+        }
+    }
 
     const clipLengthOptions: { value: ClipLength, label: string }[] = [
         { value: '<30', label: '<30s' },
@@ -99,22 +112,6 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
                             )}
                         </div>
                     </div>
-
-                    {/* Timeframe */}
-                    <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                        <h3 className="font-semibold text-lg mb-3 text-white">Processing Timeframe</h3>
-                        <p className="text-sm text-gray-400 mb-2">Process video from {config.processingTimeframe[0]}% to {config.processingTimeframe[1]}%</p>
-                        <div className="space-y-2">
-                             <div>
-                                <label className="text-xs text-gray-400">Start: {config.processingTimeframe[0]}%</label>
-                                <input type="range" min="0" max="100" value={config.processingTimeframe[0]} onChange={e => setConfig({...config, processingTimeframe: [Number(e.target.value), Math.max(Number(e.target.value), config.processingTimeframe[1])]})} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm" />
-                             </div>
-                             <div>
-                                <label className="text-xs text-gray-400">End: {config.processingTimeframe[1]}%</label>
-                                <input type="range" min="0" max="100" value={config.processingTimeframe[1]} onChange={e => setConfig({...config, processingTimeframe: [Math.min(config.processingTimeframe[0], Number(e.target.value)), Number(e.target.value)]})} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm"/>
-                             </div>
-                        </div>
-                    </div>
                      {/* Clip Length & Layout */}
                     <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
                          <h3 className="font-semibold text-lg mb-3 text-white">Format</h3>
@@ -161,17 +158,31 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
                         </button>
                         {showAdvanced && (
                             <div className="mt-4 pt-4 border-t border-gray-700 space-y-4">
-                                <Toggle label="Meme Hook" checked={config.memeHook} onChange={c => setConfig({...config, memeHook: c})} />
-                                <Toggle label="Game Video Background" checked={config.gameVideo} onChange={c => setConfig({...config, gameVideo: c})} />
+                                <div className="flex items-center justify-between">
+                                    <span className="text-gray-300">Add Watermark</span>
+                                    <button type="button" onClick={() => watermarkInputRef.current?.click()} className="text-sm text-purple-400 hover:text-purple-300 font-semibold">
+                                        {config.watermarkFile ? 'Change' : 'Upload'}
+                                    </button>
+                                    <input type="file" ref={watermarkInputRef} onChange={(e) => handleFileChange(e, 'watermark')} className="hidden" accept="image/png,image/jpeg" />
+                                </div>
+                                 {config.watermarkFile && <p className="text-xs text-gray-400 text-right -mt-2">{config.watermarkFile.name}</p>}
+
+                                <Toggle label="Background Music" checked={config.backgroundMusic} onChange={c => setConfig({...config, backgroundMusic: c, backgroundMusicFile: c ? config.backgroundMusicFile : null})} />
+                                {config.backgroundMusic && (
+                                     <button type="button" onClick={() => musicInputRef.current?.click()} className="w-full text-sm text-purple-400 hover:text-purple-300 font-semibold p-2 bg-gray-700/50 rounded-md border border-dashed border-gray-600">
+                                        {config.backgroundMusicFile ? config.backgroundMusicFile.name : 'Select Audio File'}
+                                     </button>
+                                )}
+                                <input type="file" ref={musicInputRef} onChange={(e) => handleFileChange(e, 'music')} className="hidden" accept="audio/mpeg,audio/wav" />
+                                
                                 <Toggle label="Hook Title" checked={config.hookTitle} onChange={c => setConfig({...config, hookTitle: c})} />
-                                <Toggle label="Background Music" checked={config.backgroundMusic} onChange={c => setConfig({...config, backgroundMusic: c})} />
                                 <Toggle label="Call to Action (CTA)" checked={config.callToAction} onChange={c => setConfig({...config, callToAction: c})} />
                                 {config.callToAction && (
                                     <input type="text" value={config.ctaText} onChange={e => setConfig({...config, ctaText: e.target.value})} placeholder="e.g. Follow for more!" className="w-full bg-gray-700 text-white text-sm p-2 rounded-md border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
                                 )}
                                 <div>
                                     <label className="block text-sm text-gray-300 mb-1">Words Per Caption ({config.wordsPerCaption})</label>
-                                     <input type="range" min="1" max="8" value={config.wordsPerCaption} onChange={e => setConfig({...config, wordsPerCaption: Number(e.target.value)})} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm" />
+                                     <input type="range" min="1" max="5" value={config.wordsPerCaption} onChange={e => setConfig({...config, wordsPerCaption: Number(e.target.value)})} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm" />
                                 </div>
                             </div>
                         )}

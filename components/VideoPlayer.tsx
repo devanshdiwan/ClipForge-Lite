@@ -1,5 +1,5 @@
-import React, { forwardRef, useEffect, useState } from 'react';
-import { Clip, ProcessingConfig } from '../types';
+import React, { forwardRef, useEffect, useState, useLayoutEffect } from 'react';
+import { Clip, ProcessingConfig, Word } from '../types';
 
 interface VideoPlayerProps {
   src: string;
@@ -9,6 +9,7 @@ interface VideoPlayerProps {
 
 const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activeClip, config }, ref) => {
     const [currentCaption, setCurrentCaption] = useState('');
+    const [videoLayoutClass, setVideoLayoutClass] = useState('object-cover');
 
     useEffect(() => {
         const videoElement = (ref as React.RefObject<HTMLVideoElement>).current;
@@ -21,7 +22,14 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activ
                     videoElement.pause();
                 }
                 const activeLine = activeClip.transcript.find(line => currentTime >= line.start && currentTime <= line.end);
-                setCurrentCaption(activeLine ? activeLine.text : '');
+                
+                if (activeLine) {
+                  const wordsToShow = activeLine.words.filter(word => currentTime >= word.start);
+                  setCurrentCaption(wordsToShow.map(w => w.text).join(' '));
+                } else {
+                   setCurrentCaption('');
+                }
+
             } else {
                 setCurrentCaption('');
             }
@@ -36,15 +44,52 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activ
         };
     }, [activeClip, ref]);
 
+    useLayoutEffect(() => {
+        const video = (ref as React.RefObject<HTMLVideoElement>).current;
+        if (!video) return;
+
+        const setLayout = () => {
+            switch (config.layout) {
+                case 'fill':
+                    setVideoLayoutClass('object-cover');
+                    break;
+                case 'fit':
+                case 'square': 
+                    setVideoLayoutClass('object-contain');
+                    break;
+                case 'auto':
+                    if (video.videoWidth / video.videoHeight > 9 / 16) {
+                        setVideoLayoutClass('object-contain');
+                    } else {
+                        setVideoLayoutClass('object-cover');
+                    }
+                    break;
+                default:
+                    setVideoLayoutClass('object-cover');
+            }
+        };
+
+        if (video.readyState >= 1) {
+            setLayout();
+        } else {
+            video.addEventListener('loadedmetadata', setLayout, { once: true });
+        }
+
+        return () => {
+            video.removeEventListener('loadedmetadata', setLayout);
+        };
+    }, [config.layout, ref]);
+
     const captionStyle = activeClip?.captionStyle;
+    const containerAspectRatio = config.layout === 'square' ? 'aspect-[1/1]' : 'aspect-[9/16]';
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-[9/16] bg-black rounded-xl overflow-hidden shadow-2xl ring-2 ring-gray-700">
+    <div className={`relative w-full max-w-md mx-auto ${containerAspectRatio} bg-black rounded-xl overflow-hidden shadow-2xl ring-2 ring-gray-700`}>
       <video
         ref={ref}
         src={src}
         controls
-        className="absolute top-0 left-0 w-full h-full object-cover"
+        className={`absolute top-0 left-0 w-full h-full ${videoLayoutClass}`}
       />
       {activeClip && config.hookTitle && (
         <div className="absolute top-16 left-0 right-0 p-4 flex justify-center items-center pointer-events-none">
