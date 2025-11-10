@@ -8,10 +8,13 @@ import ConfigSection from './components/ConfigSection';
 import { useVideoProcessor } from './hooks/useVideoProcessor';
 import { loadFFmpeg } from './services/exportService';
 
+type FFmpegStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
 const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [config, setConfig] = useState<ProcessingConfig | null>(null);
   const [startProcessing, setStartProcessing] = useState(false);
+  const [ffmpegStatus, setFfmpegStatus] = useState<FFmpegStatus>('idle');
 
   const videoUrl = useMemo(() => {
     return videoFile ? URL.createObjectURL(videoFile) : null;
@@ -19,15 +22,18 @@ const App: React.FC = () => {
 
   // Pre-load FFmpeg as soon as a video is selected
   useEffect(() => {
-    if (videoFile) {
-      console.log("Pre-loading FFmpeg...");
+    if (videoFile && ffmpegStatus === 'idle') {
+      console.log("Starting FFmpeg load...");
+      setFfmpegStatus('loading');
       loadFFmpeg().then(() => {
-        console.log("FFmpeg pre-loaded successfully.");
+        console.log("FFmpeg loaded successfully.");
+        setFfmpegStatus('loaded');
       }).catch(err => {
-        console.error("Failed to pre-load FFmpeg:", err);
+        console.error("Failed to load FFmpeg:", err);
+        setFfmpegStatus('error');
       });
     }
-  }, [videoFile]);
+  }, [videoFile, ffmpegStatus]);
 
   const { clips, processingState, error } = useVideoProcessor(
     videoFile,
@@ -53,6 +59,7 @@ const App: React.FC = () => {
     setVideoFile(null);
     setStartProcessing(false);
     setConfig(null);
+    setFfmpegStatus('idle');
   }, [videoUrl]);
   
   const isProcessing = startProcessing && !['idle', 'done', 'error'].includes(processingState.status);
@@ -68,6 +75,7 @@ const App: React.FC = () => {
         <ConfigSection 
           videoFile={videoFile}
           onStartProcessing={handleStartProcessing}
+          ffmpegStatus={ffmpegStatus}
         />
       );
     }

@@ -3,9 +3,12 @@ import { ProcessingConfig, ClipLength, VideoLayout, CaptionTemplate } from '../t
 import { SparklesIcon } from './icons/SparklesIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
 
+type FFmpegStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
 interface ConfigSectionProps {
   videoFile: File;
   onStartProcessing: (config: ProcessingConfig) => void;
+  ffmpegStatus: FFmpegStatus;
 }
 
 const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: boolean) => void }> = ({ label, checked, onChange }) => (
@@ -19,7 +22,7 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: bo
 );
 
 
-const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcessing }) => {
+const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcessing, ffmpegStatus }) => {
     const [config, setConfig] = useState<ProcessingConfig>({
         processingTimeframe: [0, 100],
         clipLength: '30-60',
@@ -72,6 +75,21 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
         { value: 'Hormozi2', label: 'Hormozi 2' },
         { value: 'Karaoke', label: 'Karaoke' },
     ];
+
+    const getButtonState = () => {
+        switch (ffmpegStatus) {
+            case 'loading':
+                return { text: 'Initializing Video Engine...', disabled: true };
+            case 'error':
+                return { text: 'Video Engine Failed to Load', disabled: true };
+            case 'loaded':
+                return { text: 'Generate Clips', disabled: false };
+            case 'idle':
+            default:
+                return { text: 'Initializing...', disabled: true };
+        }
+    };
+    const buttonState = getButtonState();
   
   return (
     <div className="w-full max-w-4xl animate-fade-in-up">
@@ -162,10 +180,20 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
                 </div>
             </div>
             
-            <button type="submit" className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-[#7B61FF] text-white font-bold text-lg rounded-lg shadow-md hover:bg-purple-600 transition-all transform hover:scale-105">
+            <button
+                type="submit"
+                disabled={buttonState.disabled}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-[#7B61FF] text-white font-bold text-lg rounded-lg shadow-md hover:bg-purple-600 transition-all transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-70"
+            >
                 <SparklesIcon className="w-6 h-6" />
-                Generate Clips
+                {buttonState.text}
             </button>
+
+            {ffmpegStatus === 'error' && (
+                <p className="text-center text-red-400 text-sm -mt-4">
+                    Failed to load the video engine. This can be caused by a network issue or an ad-blocker. Please try reloading the page.
+                </p>
+            )}
         </form>
     </div>
   );

@@ -2,60 +2,66 @@ import { Clip, ProcessingConfig } from '../types';
 import { generateSRT } from '../utils/subtitle';
 
 let ffmpegInstance: any = null;
-let ffmpegLoadPromise: Promise<void> | null = null;
+let loadPromise: Promise<void> | null = null;
 
-// This function will wait for the FFmpeg script to load the global FFmpeg object.
-const getFFmpegGlobal = (): Promise<any> => {
-    return new Promise((resolve, reject) => {
+const createAndLoadFFmpeg = async (): Promise<void> => {
+    // 1. Wait for the global FFmpeg object from the script tag in index.html
+    console.log('Waiting for FFmpeg global object...');
+    const FFmpeg = await new Promise<any>((resolve, reject) => {
         const startTime = Date.now();
+        const timeout = 120000; // 120 seconds
+
         const check = () => {
-            const ffmpegGlobal = (window as any).FFmpeg;
-            if (ffmpegGlobal) {
-                resolve(ffmpegGlobal);
-            } else if (Date.now() - startTime > 8000) { // 8 second timeout
-                reject(new Error("FFmpeg library not loaded. It might be blocked by an ad-blocker or a network issue."));
-            }
-            else {
-                setTimeout(check, 100);
+            if ((window as any).FFmpeg) {
+                console.log("FFmpeg global object found.");
+                resolve((window as any).FFmpeg);
+            } else if (Date.now() - startTime > timeout) {
+                reject(new Error(`FFmpeg library failed to load within ${timeout/1000} seconds. It might be blocked by an ad-blocker or a network issue.`));
+            } else {
+                setTimeout(check, 250); // Poll every 250ms
             }
         };
         check();
     });
+
+    // 2. Create and load the FFmpeg instance if it doesn't exist
+    if (!ffmpegInstance) {
+        console.log('Creating FFmpeg instance...');
+        const { createFFmpeg } = FFmpeg;
+        ffmpegInstance = createFFmpeg({
+            log: true,
+            // Use the single-threaded core to avoid SharedArrayBuffer issues
+            corePath: 'https://unpkg.com/@ffmpeg/core-st@0.12.6/dist/ffmpeg-core.js',
+        });
+    }
+
+    if (!ffmpegInstance.isLoaded()) {
+        console.log('Loading FFmpeg core...');
+        await ffmpegInstance.load();
+        console.log('FFmpeg core loaded.');
+    }
 };
 
-const loadFFmpegInternal = async (): Promise<void> => {
-    if (ffmpegInstance && ffmpegInstance.isLoaded()) return;
-
-    const ffmpegGlobal = await getFFmpegGlobal();
-    
-    const { createFFmpeg } = ffmpegGlobal;
-    ffmpegInstance = createFFmpeg({
-        log: true,
-        corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-    });
-    await ffmpegInstance.load();
-};
 
 export const loadFFmpeg = async (): Promise<void> => {
-    if (!ffmpegLoadPromise) {
-        ffmpegLoadPromise = loadFFmpegInternal();
+    if (!loadPromise) {
+        loadPromise = createAndLoadFFmpeg();
     }
     try {
-        await ffmpegLoadPromise;
+        await loadPromise;
     } catch (error) {
         // Reset promise on failure to allow retries
-        ffmpegLoadPromise = null;
+        loadPromise = null; 
         throw error;
     }
 };
 
 export const getFFmpeg = () => {
-    const ffmpegGlobal = (window as any).FFmpeg;
-    // This function is now only called after loadFFmpeg has succeeded.
-    if (!ffmpegGlobal || !ffmpegInstance) {
+    const FFmpegGlobal = (window as any).FFmpeg;
+    if (!FFmpegGlobal || !ffmpegInstance || !ffmpegInstance.isLoaded()) {
         throw new Error("FFmpeg not ready. Ensure loadFFmpeg() has been called and resolved successfully.");
     }
-    return { ...ffmpegGlobal, getFFmpegInstance: () => ffmpegInstance };
+    return { ...FFmpegGlobal, getFFmpegInstance: () => ffmpegInstance };
 };
 
 export const exportClip = async (
