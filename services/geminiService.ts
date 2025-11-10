@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from '../types';
 
-const API_KEY = process.env.API_KEY;
+const API_KEY = (typeof process !== 'undefined' && process.env?.API_KEY) || '';
 
 if (!API_KEY) {
   console.warn("API_KEY environment variable not set. Gemini API calls will fail.");
