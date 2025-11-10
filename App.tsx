@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { ProcessingConfig } from './types';
 import Header from './components/Header';
 import UploadSection from './components/UploadSection';
@@ -6,6 +6,7 @@ import Workspace from './components/Workspace';
 import Loader from './components/Loader';
 import ConfigSection from './components/ConfigSection';
 import { useVideoProcessor } from './hooks/useVideoProcessor';
+import { loadFFmpeg } from './services/exportService';
 
 const App: React.FC = () => {
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -14,6 +15,18 @@ const App: React.FC = () => {
 
   const videoUrl = useMemo(() => {
     return videoFile ? URL.createObjectURL(videoFile) : null;
+  }, [videoFile]);
+
+  // Pre-load FFmpeg as soon as a video is selected
+  useEffect(() => {
+    if (videoFile) {
+      console.log("Pre-loading FFmpeg...");
+      loadFFmpeg().then(() => {
+        console.log("FFmpeg pre-loaded successfully.");
+      }).catch(err => {
+        console.error("Failed to pre-load FFmpeg:", err);
+      });
+    }
   }, [videoFile]);
 
   const { clips, processingState, error } = useVideoProcessor(

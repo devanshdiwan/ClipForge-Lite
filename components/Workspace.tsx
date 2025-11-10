@@ -121,7 +121,7 @@ const Workspace: React.FC<WorkspaceProps> = ({ videoUrl, clips: initialClips, pr
       <div className="text-center p-8 bg-red-900/20 border border-red-500 rounded-lg max-w-2xl mx-auto">
         <h3 className="text-2xl font-bold text-red-400 mb-2">Processing Failed</h3>
         <p className="text-red-300">{error}</p>
-        <p className="text-sm text-gray-400 mt-2">Please try reloading the page or using a different video file. If this persists, check your API key configuration.</p>
+        <p className="text-sm text-gray-400 mt-2">Please try reloading the page or using a different video file.</p>
       </div>
     );
   }
