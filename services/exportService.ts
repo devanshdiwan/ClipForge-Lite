@@ -2,25 +2,60 @@ import { Clip, ProcessingConfig } from '../types';
 import { generateSRT } from '../utils/subtitle';
 
 let ffmpegInstance: any = null;
+let ffmpegLoadPromise: Promise<void> | null = null;
+
+// This function will wait for the FFmpeg script to load the global FFmpeg object.
+const getFFmpegGlobal = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+        const startTime = Date.now();
+        const check = () => {
+            const ffmpegGlobal = (window as any).FFmpeg;
+            if (ffmpegGlobal) {
+                resolve(ffmpegGlobal);
+            } else if (Date.now() - startTime > 8000) { // 8 second timeout
+                reject(new Error("FFmpeg library not loaded. It might be blocked by an ad-blocker or a network issue."));
+            }
+            else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+};
+
+const loadFFmpegInternal = async (): Promise<void> => {
+    if (ffmpegInstance && ffmpegInstance.isLoaded()) return;
+
+    const ffmpegGlobal = await getFFmpegGlobal();
+    
+    const { createFFmpeg } = ffmpegGlobal;
+    ffmpegInstance = createFFmpeg({
+        log: true,
+        corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+    });
+    await ffmpegInstance.load();
+};
+
+export const loadFFmpeg = async (): Promise<void> => {
+    if (!ffmpegLoadPromise) {
+        ffmpegLoadPromise = loadFFmpegInternal();
+    }
+    try {
+        await ffmpegLoadPromise;
+    } catch (error) {
+        // Reset promise on failure to allow retries
+        ffmpegLoadPromise = null;
+        throw error;
+    }
+};
 
 export const getFFmpeg = () => {
     const ffmpegGlobal = (window as any).FFmpeg;
-    if (!ffmpegGlobal) {
-        throw new Error("FFmpeg library not loaded. It might be blocked by an ad-blocker or a network issue.");
+    // This function is now only called after loadFFmpeg has succeeded.
+    if (!ffmpegGlobal || !ffmpegInstance) {
+        throw new Error("FFmpeg not ready. Ensure loadFFmpeg() has been called and resolved successfully.");
     }
     return { ...ffmpegGlobal, getFFmpegInstance: () => ffmpegInstance };
-}
-
-
-export const loadFFmpeg = async (): Promise<void> => {
-  if (ffmpegInstance && ffmpegInstance.isLoaded()) return;
-
-  const { createFFmpeg } = getFFmpeg();
-  ffmpegInstance = createFFmpeg({
-    log: true,
-    corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-  });
-  await ffmpegInstance.load();
 };
 
 export const exportClip = async (
@@ -28,9 +63,7 @@ export const exportClip = async (
   clip: Clip,
   config: ProcessingConfig,
 ): Promise<Blob> => {
-    if (!ffmpegInstance || !ffmpegInstance.isLoaded()) {
-        await loadFFmpeg();
-    }
+    await loadFFmpeg();
 
     const ffmpeg = getFFmpeg().getFFmpegInstance();
     const { fetchFile } = getFFmpeg();
