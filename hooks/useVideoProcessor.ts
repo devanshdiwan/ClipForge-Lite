@@ -120,6 +120,7 @@ export const useVideoProcessor = (
   videoFile: File | null,
   config: ProcessingConfig | null,
   enabled: boolean,
+  onApiKeyError: () => void,
 ) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     status: 'idle',
@@ -222,13 +223,18 @@ export const useVideoProcessor = (
       } catch (err) {
         console.error(err);
         const message = err instanceof Error ? err.message : 'An unknown error occurred during processing.';
+
+        if (message.toLowerCase().includes('api key')) {
+            onApiKeyError();
+        }
+
         setError(message);
         setProcessingState({ status: 'error', message: `Error: ${message}`, progress: 0 });
       }
     };
 
     processVideo();
-  }, [videoFile, enabled, config]);
+  }, [videoFile, enabled, config, onApiKeyError]);
 
   return { processingState, clips, error };
 };
