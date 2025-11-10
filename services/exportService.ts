@@ -1,29 +1,26 @@
 import { Clip, ProcessingConfig } from '../types';
 import { generateSRT } from '../utils/subtitle';
 
-// This file interacts with the FFmpeg library loaded via a script tag in index.html.
-// We access it via the `window` object to ensure it's correctly referenced in a module context.
+let ffmpegInstance: any = null;
 
-let ffmpeg: any = null;
-
-const getFFmpeg = () => {
+export const getFFmpeg = () => {
     const ffmpegGlobal = (window as any).FFmpeg;
     if (!ffmpegGlobal) {
         throw new Error("FFmpeg library not loaded. It might be blocked by an ad-blocker or a network issue.");
     }
-    return ffmpegGlobal;
+    return { ...ffmpegGlobal, getFFmpegInstance: () => ffmpegInstance };
 }
 
 
 export const loadFFmpeg = async (): Promise<void> => {
-  if (ffmpeg && ffmpeg.isLoaded()) return;
+  if (ffmpegInstance && ffmpegInstance.isLoaded()) return;
 
   const { createFFmpeg } = getFFmpeg();
-  ffmpeg = createFFmpeg({
+  ffmpegInstance = createFFmpeg({
     log: true,
     corePath: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
   });
-  await ffmpeg.load();
+  await ffmpegInstance.load();
 };
 
 export const exportClip = async (
@@ -31,10 +28,11 @@ export const exportClip = async (
   clip: Clip,
   config: ProcessingConfig,
 ): Promise<Blob> => {
-    if (!ffmpeg || !ffmpeg.isLoaded()) {
+    if (!ffmpegInstance || !ffmpegInstance.isLoaded()) {
         await loadFFmpeg();
     }
 
+    const ffmpeg = getFFmpeg().getFFmpegInstance();
     const { fetchFile } = getFFmpeg();
     const { startTime, endTime, transcript, hook, captionStyle } = clip;
     const { layout, hookTitle, callToAction, ctaText, watermarkFile, backgroundMusic, backgroundMusicFile } = config;

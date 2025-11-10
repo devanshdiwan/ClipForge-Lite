@@ -37,7 +37,6 @@ const highlightKeywords = (text: string, highlightColor: string) => {
 
 const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, isExporting, onPlay, onDownload, onDelete }) => {
   const duration = clip.endTime - clip.startTime;
-  const firstEmoji = clip.transcript[0]?.emoji;
   
   return (
     <div className={`p-4 rounded-lg transition-all duration-300 ${isActive ? 'bg-purple-900/50 ring-2 ring-purple-500' : 'bg-gray-700/50 hover:bg-gray-700'}`}>
@@ -49,7 +48,7 @@ const ClipCard: React.FC<ClipCardProps> = ({ clip, isActive, isExporting, onPlay
           <PlayIcon className={`w-6 h-6 transition-colors ${isActive ? 'text-purple-400' : 'text-gray-400 group-hover:text-white'}`} />
         </button>
         <div className="flex-1">
-          <p className="font-bold text-white">{firstEmoji && <span className="mr-2">{firstEmoji}</span>}"{clip.hook}"</p>
+          <p className="font-bold text-white">"{clip.hook}"</p>
           <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
             <span>{formatTime(clip.startTime)} - {formatTime(clip.endTime)}</span>
             <span className="w-1 h-1 bg-gray-500 rounded-full"></span>

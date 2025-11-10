@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Clip, ProcessingState, TranscriptLine, ProcessingConfig, CaptionStyle, CaptionTemplate, Word } from '../types';
-import { analyzeVideoContent, generateHook } from '../services/geminiService';
+import { Clip, ProcessingState, TranscriptLine, ProcessingConfig, CaptionStyle, CaptionTemplate } from '../types';
+import { loadFFmpeg, getFFmpeg } from '../services/exportService';
 
-const TARGET_CLIPS = 6;
-const FRAME_COUNT = 20;
+const TARGET_CLIPS = 8;
 
 const CAPTION_TEMPLATES: Record<CaptionTemplate, CaptionStyle> = {
   Hormozi1: {
@@ -35,84 +34,89 @@ const CAPTION_TEMPLATES: Record<CaptionTemplate, CaptionStyle> = {
   },
 };
 
-const extractFrames = (videoFile: File, onProgress: (progress: number) => void): Promise<{ frames: string[], duration: number }> => {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    const frames: string[] = [];
-    
-    if (!ctx) {
-        return reject(new Error("Could not create canvas context"));
-    }
-
-    video.preload = 'metadata';
-    video.src = URL.createObjectURL(videoFile);
-
-    video.onloadedmetadata = () => {
-      const duration = video.duration;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      const interval = duration / FRAME_COUNT;
-      let currentTime = 0;
-      let framesExtracted = 0;
-
-      const captureFrame = () => {
-        if (framesExtracted >= FRAME_COUNT) {
-          URL.revokeObjectURL(video.src);
-          onProgress(100);
-          resolve({ frames, duration });
-          return;
-        }
-        video.currentTime = currentTime;
-      };
-
-      video.onseeked = () => {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        frames.push(canvas.toDataURL('image/jpeg', 0.8));
-        framesExtracted++;
-        currentTime += interval;
-        onProgress((framesExtracted / FRAME_COUNT) * 100);
-        captureFrame();
-      };
-      
-      video.onerror = () => {
-          URL.revokeObjectURL(video.src);
-          reject(new Error("Error seeking video. The file may be corrupt or in an unsupported format."));
-      }
-
-      captureFrame();
-    };
-    
-    video.onerror = () => {
-        reject(new Error("Failed to load video metadata. The file might be corrupt."));
-    }
-  });
+const getVideoDuration = (videoFile: File): Promise<number> => {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.src = URL.createObjectURL(videoFile);
+        video.onloadedmetadata = () => {
+            URL.revokeObjectURL(video.src);
+            resolve(video.duration);
+        };
+        video.onerror = (e) => {
+            URL.revokeObjectURL(video.src);
+            reject(new Error("Failed to load video metadata."));
+        };
+    });
 };
 
-const createKaraokeTranscript = (
-  aiTranscript: { words: Word[], emoji?: string }[],
-  wordsPerCaption: number
-): TranscriptLine[] => {
-    const karaokeLines: TranscriptLine[] = [];
-    const allWords = aiTranscript.flatMap(line => line.words.map(w => ({...w, emoji: line.emoji})));
 
-    for (let i = 0; i < allWords.length; i += wordsPerCaption) {
-        const chunk = allWords.slice(i, i + wordsPerCaption);
-        if (chunk.length > 0) {
-            const firstWord = chunk[0];
-            const lastWord = chunk[chunk.length - 1];
-            karaokeLines.push({
-                text: chunk.map(w => w.text).join(' '),
-                start: firstWord.start,
-                end: lastWord.end,
-                words: chunk,
-                emoji: firstWord.emoji,
-            });
+const detectScenes = async (
+    videoFile: File, 
+    onProgress: (progress: number, message: string) => void
+): Promise<{ segments: { start: number, end: number }[], duration: number }> => {
+  await loadFFmpeg();
+  const ffmpeg = getFFmpeg().getFFmpegInstance();
+  const { fetchFile } = getFFmpeg();
+
+  const duration = await getVideoDuration(videoFile);
+
+  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
+
+  const logMessages: string[] = [];
+  ffmpeg.setLogger(({ message }: { message: string }) => {
+    logMessages.push(message);
+    if (message.includes('time=')) {
+        const timeMatch = message.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+        if (timeMatch) {
+            const hours = parseInt(timeMatch[1], 10);
+            const minutes = parseInt(timeMatch[2], 10);
+            const seconds = parseInt(timeMatch[3], 10);
+            const centiseconds = parseInt(timeMatch[4], 10);
+            const currentTime = hours * 3600 + minutes * 60 + seconds + centiseconds / 100;
+            const progress = (currentTime / duration) * 100;
+            onProgress(progress * 0.5, 'Detecting scenes...'); // This part is 50% of the analysis
         }
     }
-    return karaokeLines;
+  });
+
+  await ffmpeg.run('-i', 'input.mp4', '-af', 'silencedetect=n=-50dB:d=0.8', '-f', 'null', '-');
+  
+  ffmpeg.setLogger(null);
+
+  const silenceLines = logMessages.filter(line => line.includes('silence_'));
+  const silences: { start: number, end: number }[] = [];
+  let currentSilence: Partial<{ start: number, end: number }> = {};
+
+  silenceLines.forEach(line => {
+    const startMatch = line.match(/silence_start: (\d+\.?\d*)/);
+    if (startMatch) {
+      currentSilence.start = parseFloat(startMatch[1]);
+    }
+    const endMatch = line.match(/silence_end: (\d+\.?\d*)/);
+    if (endMatch && currentSilence.start !== undefined) {
+      currentSilence.end = parseFloat(endMatch[1]);
+      silences.push(currentSilence as { start: number, end: number });
+      currentSilence = {};
+    }
+  });
+
+  const segments: { start: number, end: number }[] = [];
+  let lastEnd = 0;
+  silences.forEach(silence => {
+    if (silence.start > lastEnd) {
+      segments.push({ start: lastEnd, end: silence.start });
+    }
+    lastEnd = silence.end;
+  });
+
+  if (lastEnd < duration) {
+    segments.push({ start: lastEnd, end: duration });
+  }
+
+  ffmpeg.FS('unlink', 'input.mp4');
+
+  return { segments: segments.filter(s => s.end - s.start > 2), duration };
 };
 
 
@@ -141,80 +145,58 @@ export const useVideoProcessor = (
       try {
         setError(null);
         setClips([]);
-        const { clipLength, videoLanguage, translateCaptions, translationLanguage, template, wordsPerCaption } = config;
+        const { clipLength, template } = config;
         const captionStyle = CAPTION_TEMPLATES[template];
 
+        setProcessingState({ status: 'preparing', message: 'Initializing...', progress: 0 });
+        
+        const { segments } = await detectScenes(videoFile, (p, m) => {
+            setProcessingState({ status: 'detecting', message: m, progress: p });
+        });
+
+        if (segments.length === 0) {
+            throw new Error("No active scenes detected. The video might be mostly silent or in an unsupported audio format.");
+        }
+        
+        setProcessingState({ status: 'analyzing', message: 'Analyzing detected scenes...', progress: 50 });
+        
         let minClipLength, maxClipLength;
         switch (clipLength) {
             case '<30': minClipLength = 10; maxClipLength = 29; break;
             case '30-60': minClipLength = 30; maxClipLength = 60; break;
             case '60-90': minClipLength = 61; maxClipLength = 90; break;
-            case 'original': minClipLength = 91; maxClipLength = 180; break;
-            default: minClipLength = 25; maxClipLength = 60;
+            default: minClipLength = 10; maxClipLength = 180;
         }
 
-        const sourceLanguage = videoLanguage;
-        const targetLanguage = translateCaptions ? translationLanguage : videoLanguage;
+        let filteredSegments = segments.filter(s => (s.end - s.start) >= minClipLength && (s.end - s.start) <= maxClipLength);
 
-        setProcessingState({ status: 'preparing', message: 'Preparing video for analysis...', progress: 0 });
-        const { frames, duration } = await extractFrames(videoFile, (p) => {
-            setProcessingState(prev => ({ ...prev, progress: p * 0.2 })); // Extraction is 0-20%
-        });
-        
-        if (duration < 10) {
-            throw new Error("Video is too short. Please use a video longer than 10 seconds.");
+        if (filteredSegments.length === 0) {
+            console.warn("No scenes in desired range, falling back to all scenes.");
+            filteredSegments = segments;
         }
 
-        setProcessingState({ status: 'analyzing', message: `AI is analyzing video content...`, progress: 20 });
-        const videoTopic = videoFile.name.replace(/\.[^/.]+$/, "").replace(/_/g, " ");
+        const sortedSegments = filteredSegments.sort((a, b) => (b.end - b.start) - (a.end - a.start));
+        const topSegments = sortedSegments.slice(0, TARGET_CLIPS);
         
-        const analysisResult = await analyzeVideoContent(frames, duration, videoTopic, sourceLanguage, targetLanguage, { min: minClipLength, max: maxClipLength });
+        setProcessingState({ status: 'generating', message: `Creating ${topSegments.length} clips...`, progress: 80 });
         
-        setProcessingState({ status: 'analyzing', message: 'Finding best moments...', progress: 60 });
-        const allScenes = analysisResult.scenes;
+        const generatedClips: Clip[] = topSegments.map((segment, i) => {
+            const duration = segment.end - segment.start;
+            const mockTranscript: TranscriptLine[] = [{
+                text: `[Auto-detected speech segment from ${segment.start.toFixed(1)}s to ${segment.end.toFixed(1)}s]`,
+                start: segment.start,
+                end: segment.end,
+            }];
 
-        let filteredScenes = allScenes;
-        if (clipLength !== 'original') {
-          filteredScenes = allScenes.filter(scene => {
-              const duration = scene.endTime - scene.startTime;
-              return duration >= minClipLength && duration <= maxClipLength;
-          });
-        }
-        
-        if (filteredScenes.length === 0 && allScenes.length > 0) {
-            console.warn(`No scenes found within the ${minClipLength}-${maxClipLength}s range. Falling back to the best available scenes regardless of length.`);
-            filteredScenes = allScenes; 
-        }
-
-        const sortedScenes = filteredScenes.sort((a, b) => b.viralityScore - a.viralityScore);
-        
-        const topScenes = sortedScenes.slice(0, TARGET_CLIPS);
-        
-        if (topScenes.length === 0) {
-           throw new Error(`The AI could not identify any clip-worthy scenes. Please try a different video or adjust length settings.`);
-        }
-
-        setProcessingState({ status: 'generating', message: `Creating ${topScenes.length} short clips...`, progress: 80 });
-        
-        const generatedClips: Clip[] = [];
-        for (let i = 0; i < topScenes.length; i++) {
-            const scene = topScenes[i];
-            if (!scene || scene.transcript.length === 0) continue;
-            
-            const hook = await generateHook(scene.summary, targetLanguage);
-            
-            const karaokeTranscript = createKaraokeTranscript(scene.transcript, wordsPerCaption);
-
-            generatedClips.push({
+            return {
                 id: `clip-${Date.now()}-${i}`,
-                startTime: scene.startTime,
-                endTime: scene.endTime,
-                hook,
-                transcript: karaokeTranscript,
+                startTime: segment.start,
+                endTime: segment.end,
+                hook: `Engaging Moment #${i + 1}`,
+                transcript: mockTranscript,
                 captionStyle: captionStyle,
-            });
-            setProcessingState(prev => ({ ...prev, progress: 80 + ((i + 1) / topScenes.length) * 20 }));
-        }
+            };
+        });
 
         setClips(generatedClips);
         setProcessingState({ status: 'done', message: 'Your clips are ready!', progress: 100 });

@@ -1,7 +1,3 @@
-// Fix: Removed `import { File } from 'buffer';` to use the global DOM File type, resolving type mismatches for file uploads.
-
-export type Language = 'English' | 'Hindi' | 'Spanish' | 'French';
-
 export type CaptionTemplate = 'Hormozi1' | 'Hormozi2' | 'Karaoke';
 
 export interface CaptionStyle {
@@ -14,18 +10,10 @@ export interface CaptionStyle {
   fontWeight?: number;
 }
 
-export interface Word {
-  text: string;
-  start: number;
-  end: number;
-}
-
 export interface TranscriptLine {
   text: string;
   start: number;
   end: number;
-  words: Word[];
-  emoji?: string;
 }
 
 export interface Clip {
@@ -37,7 +25,7 @@ export interface Clip {
   captionStyle: CaptionStyle;
 }
 
-export type ProcessingStatus = 'idle' | 'preparing' | 'analyzing' | 'generating' | 'done' | 'error';
+export type ProcessingStatus = 'idle' | 'preparing' | 'detecting' | 'analyzing' | 'generating' | 'done' | 'error';
 
 export interface ProcessingState {
   status: ProcessingStatus;
@@ -49,9 +37,6 @@ export type ClipLength = '<30' | '30-60' | '60-90' | 'original';
 export type VideoLayout = 'auto' | 'fill' | 'fit' | 'square';
 
 export interface ProcessingConfig {
-  videoLanguage: Language;
-  translateCaptions: boolean;
-  translationLanguage: Language;
   processingTimeframe: [number, number];
   clipLength: ClipLength;
   layout: VideoLayout;

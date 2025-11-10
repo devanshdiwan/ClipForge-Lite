@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
-import { ProcessingConfig, Language, ClipLength, VideoLayout, CaptionTemplate } from '../types';
+import { ProcessingConfig, ClipLength, VideoLayout, CaptionTemplate } from '../types';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { SettingsIcon } from './icons/SettingsIcon';
-import { UploadIcon } from './icons/UploadIcon';
 
 interface ConfigSectionProps {
   videoFile: File;
@@ -22,9 +21,6 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (checked: bo
 
 const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcessing }) => {
     const [config, setConfig] = useState<ProcessingConfig>({
-        videoLanguage: 'English',
-        translateCaptions: false,
-        translationLanguage: 'Spanish',
         processingTimeframe: [0, 100],
         clipLength: '30-60',
         layout: 'fit',
@@ -76,8 +72,6 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
         { value: 'Hormozi2', label: 'Hormozi 2' },
         { value: 'Karaoke', label: 'Karaoke' },
     ];
-
-    const languageOptions: Language[] = ['English', 'Hindi', 'Spanish', 'French'];
   
   return (
     <div className="w-full max-w-4xl animate-fade-in-up">
@@ -94,24 +88,6 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Left Column */}
                 <div className="space-y-6">
-                    {/* Language */}
-                    <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-                        <h3 className="font-semibold text-lg mb-3 text-white">Language</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <label htmlFor="video-lang" className="block text-sm font-medium text-gray-400 mb-1">Video Language</label>
-                                <select id="video-lang" value={config.videoLanguage} onChange={e => setConfig({...config, videoLanguage: e.target.value as Language})} className="w-full bg-gray-700 text-white p-2 rounded-md border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                                    {languageOptions.map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                                </select>
-                            </div>
-                            <Toggle label="Translate Captions" checked={config.translateCaptions} onChange={c => setConfig({...config, translateCaptions: c})} />
-                             {config.translateCaptions && (
-                                <select value={config.translationLanguage} onChange={e => setConfig({...config, translationLanguage: e.target.value as Language})} className="w-full bg-gray-700 text-white p-2 rounded-md border border-gray-600 focus:ring-purple-500 focus:border-purple-500">
-                                    {languageOptions.filter(l => l !== config.videoLanguage).map(lang => <option key={lang} value={lang}>{lang}</option>)}
-                                </select>
-                            )}
-                        </div>
-                    </div>
                      {/* Clip Length & Layout */}
                     <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
                          <h3 className="font-semibold text-lg mb-3 text-white">Format</h3>
@@ -180,10 +156,6 @@ const ConfigSection: React.FC<ConfigSectionProps> = ({ videoFile, onStartProcess
                                 {config.callToAction && (
                                     <input type="text" value={config.ctaText} onChange={e => setConfig({...config, ctaText: e.target.value})} placeholder="e.g. Follow for more!" className="w-full bg-gray-700 text-white text-sm p-2 rounded-md border border-gray-600 focus:ring-purple-500 focus:border-purple-500"/>
                                 )}
-                                <div>
-                                    <label className="block text-sm text-gray-300 mb-1">Words Per Caption ({config.wordsPerCaption})</label>
-                                     <input type="range" min="1" max="5" value={config.wordsPerCaption} onChange={e => setConfig({...config, wordsPerCaption: Number(e.target.value)})} className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer range-sm" />
-                                </div>
                             </div>
                         )}
                     </div>

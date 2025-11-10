@@ -1,5 +1,5 @@
 import React, { forwardRef, useEffect, useState, useLayoutEffect } from 'react';
-import { Clip, ProcessingConfig, Word } from '../types';
+import { Clip, ProcessingConfig } from '../types';
 
 interface VideoPlayerProps {
   src: string;
@@ -22,14 +22,7 @@ const VideoPlayer = forwardRef<HTMLVideoElement, VideoPlayerProps>(({ src, activ
                     videoElement.pause();
                 }
                 const activeLine = activeClip.transcript.find(line => currentTime >= line.start && currentTime <= line.end);
-                
-                if (activeLine) {
-                  const wordsToShow = activeLine.words.filter(word => currentTime >= word.start);
-                  setCurrentCaption(wordsToShow.map(w => w.text).join(' '));
-                } else {
-                   setCurrentCaption('');
-                }
-
+                setCurrentCaption(activeLine ? activeLine.text : '');
             } else {
                 setCurrentCaption('');
             }
